@@ -2,7 +2,13 @@
 import os, math, logging, json, traceback, itertools
 from datetime import datetime, timedelta
 import concurrent.futures
-from helper import get_driver, get_twilio, get_logger, check_resy
+from helper import get_twilio, get_logger, check_resy
+import amd64
+import arch
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-m', '--mode', dest='mode', choices=['arch', 'amd64'], default='amd64')
 
 log_fname = os.path.join(os.getcwd(), 'log.txt')
 
@@ -61,11 +67,18 @@ def thread_task(
 	if not restaurant_payloads:
 		return
 
+	args = parser.parse_args()	
 	
 	driver = None
 
 	try:
-		driver = get_driver()
+		if args.mode == 'amd64':
+			driver = amd64.get_driver()
+		elif args.mode == 'arch':
+			driver = arch.get_driver()
+
+		if driver is None:
+			raise Exception('Unable to get driver')
 	except:
 		print(traceback.format_exc())
 		raise()
