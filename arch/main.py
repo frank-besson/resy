@@ -1,10 +1,13 @@
 
-import os, math, sys, json, traceback, itertools
+import os, math, logging, json, traceback, itertools
 from datetime import datetime, timedelta
 import concurrent.futures
 from helper import get_driver, get_twilio, get_logger, check_resy
 
 log_fname = os.path.join(os.getcwd(), 'log.txt')
+
+if os.path.exists(log_fname):
+	os.remove(log_fname)
 
 logger = get_logger(log_fname)
 
@@ -24,7 +27,6 @@ def check_for_availability(
 	driver, 
 	twilio_client
 ):
-	print('checking')
 
 	restaurant = restaurant_payload['restaurant']
 	seats = restaurant_payload['seats']
@@ -39,18 +41,18 @@ def check_for_availability(
 			url,
 			driver
 		)
-
-		print('bttn list:', button_list)
 		
-		if button_list:
-			message = f'Availability at {restaurant}...\n\n{ts.strftime("%m-%d-%Y")}\n{url}'
-			print(message)
+		logger.info(f'[{str(len(button_list))}] {url}')
 
-			twilio_client.messages.create(
-				body=message,
-				from_='+1(active twilio number to send notification from)',
-				to=['+1(number to send notification to)']
-			)
+		if button_list:
+			message = f'Availability at {restaurant} for {seats} people...\n\n{ts.strftime("%m-%d-%Y")}\n{url}'
+
+			for number in restaurant_payload['to']:
+				twilio_client.messages.create(
+					body=message,
+					from_=restaurant_payload['from'],
+					to=number
+				)
 
 
 def thread_task(
@@ -68,7 +70,6 @@ def thread_task(
 		print(traceback.format_exc())
 		raise()
 
-	print('threadTask:')
 	twilio_client = None
 
 	try:

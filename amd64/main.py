@@ -37,8 +37,6 @@ def check_for_availability(
 			url,
 			driver
 		)
-
-		print('bttn list:', button_list)
 		
 		if button_list:
 			message = f'Availability at {restaurant}...\n\n{ts.strftime("%m-%d-%Y")}\n{url}'
@@ -46,8 +44,8 @@ def check_for_availability(
 
 			twilio_client.messages.create(
 				body=message,
-				from_='+1(active twilio number to send notification from)',
-				to=['+1(number to send notification to)']
+				from_=restaurant_payload['from'],
+				to=restaurant_payload['to']
 			)
 
 
