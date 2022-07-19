@@ -1,57 +1,119 @@
-import os
-import time
+
+import os, sys, json, traceback, itertools
 from datetime import datetime, timedelta
-from twilio.rest import Client
+import concurrent.futures
+from helper import get_driver, get_twilio, get_logger, check_resy
 
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
+log_fname = os.path.join(os.getcwd(), 'log.txt')
 
-from webdriver_manager.chrome import ChromeDriverManager
+logger = get_logger(log_fname)
 
-from selenium.webdriver.chrome.service import Service
 
-chrome_options = Options()
-chrome_options.add_argument('--headless')
-chrome_options.add_argument('--no-sandbox')
-chrome_options.add_argument('--disable-dev-shm-usage')
+def grouper(
+	num_of_groups, 
+	iterable, 
+	fillvalue=None
+):
+	"grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
+	args = [iter(iterable)] * num_of_groups
+	return list(itertools.zip_longest(fillvalue=fillvalue, *args))
 
-driver = webdriver.Chrome(
-		options=chrome_options, 
-		service=Service(ChromeDriverManager().install())
-	)
- 
-account_sid = os.environ['TWILIO_ACCOUNT_SID']
-auth_token = os.environ['TWILIO_AUTH_TOKEN']
-client = Client(account_sid, auth_token)
 
-seats = 2
-restaurant = 'jackdaw'
+def check_for_availability(
+	restaurant_payload,
+	driver, 
+	twilio_client
+):
+	restaurant = restaurant_payload['restaurant']
+	seats = restaurant_payload['seats']
+
+	for delta in range(0, restaurant_payload['reservation_day_range']):
+
+		ts = datetime.now() + timedelta(days=delta)
+
+		url = f'https://resy.com/cities/ny/{restaurant}?date={ts.strftime("%Y-%m-%d")}&seats={seats}'
+
+		button_list = check_resy(
+			url,
+			driver
+		)
+		
+		if button_list:
+			message = f'Availability at {restaurant}...\n\n{ts.strftime("%m-%d-%Y")}\n{url}'
+			print(message)
+
+			twilio_client.messages.create(
+				body=message,
+				from_='+1(active twilio number to send notification from)',
+				to=['+1(number to send notification to)']
+			)
+
+
+def thread_task(
+	restaurant_payloads
+):
+	if not restaurant_payloads:
+		return
+
+	driver = None
+
+	try:
+		driver = get_driver()
+	except:
+		raise()
+
+	twilio_client = None
+
+	try:
+		twilio_client = get_twilio(
+			account_sid=os.environ['TWILIO_ACCOUNT_SID'],
+			auth_token=os.environ['TWILIO_AUTH_TOKEN']
+		) 
+	except:
+		print(traceback.format_exc())
+		raise Exception('Unable to get twilio client')
+
+	try:
+		for restaurant_payload in restaurant_payloads:
+			check_for_availability(restaurant_payload, driver, twilio_client)
+	except:
+		pass
+	finally:
+		driver.quit()
+		
+
+def ThreadPoolExecutor(payload, num_workers=4):
+	try:
+		group_size = int(len(payload)/num_workers)
+		groups = grouper(group_size, payload, None)
+
+		with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+			executor.map(thread_task, groups)
+		
+		return True
+	except:
+		logger.info(traceback.format_exc())
 
 
 if __name__ == "__main__":
 
-	# check 30 days for availability
-	for d in range(30, -1, -1):
 
-		ts = datetime.now() + timedelta(days=d)
 
-		url = f'https://resy.com/cities/ny/{restaurant}?date={ts.strftime("%Y-%m-%d")}&seats={seats}'
+	payload = None
 
-		driver.get(url)
+	try:
+		with open('payload.json', 'r') as f:
+			payload = json.loads(f.read())['query']
+		
+		if payload is None:
+			raise Exception('No payload')
 
-		# https://selenium-python.readthedocs.io/locating-elements.html#
-		button_list = driver.find_elements(By.CLASS_NAME, 'content-layer')
+	except:
+		print(traceback.format_exc())
+		raise Exception('Unable to get payload')
 
-		availablity = '\n\t'.join([str(button.text).replace("\n", " - ") for button in button_list])
-
-		if availablity:
-			message = f'Availability at {restaurant}...\n\n{ts.strftime("%m-%d-%Y")}\n{url}'
-			client.messages \
-					.create(
-						body=message,
-						from_='+1(active twilio number to send notification from)',
-						to=['+1(number to send notification to)']
-					)
-
-		time.sleep(1)
+	try:
+		ThreadPoolExecutor(payload)
+	except:
+		print(traceback.format_exc())
+		raise Exception('Unable to complete ThreadPoolExecutor')

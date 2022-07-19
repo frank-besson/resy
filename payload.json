@@ -1,0 +1,12 @@
+{
+    "query": [
+        {
+            "restaurant": "carbone",
+            "seats": 2,
+            "numbers": [
+                "+1(number to send to)"
+            ],
+            "reservation_day_range": 30
+        }
+    ]
+}
