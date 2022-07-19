@@ -2,5 +2,6 @@
 .env
 *.sh
 *.txt
+*.json
 
 __pycache__/
