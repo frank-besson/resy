@@ -1,5 +1,5 @@
 
-import os, sys, json, traceback, itertools
+import os, math, sys, json, traceback, itertools
 from datetime import datetime, timedelta
 import concurrent.futures
 from helper import get_driver, get_twilio, get_logger, check_resy
@@ -37,6 +37,8 @@ def check_for_availability(
 			url,
 			driver
 		)
+
+		print('bttn list:', button_list)
 		
 		if button_list:
 			message = f'Availability at {restaurant}...\n\n{ts.strftime("%m-%d-%Y")}\n{url}'
@@ -54,12 +56,13 @@ def thread_task(
 ):
 	if not restaurant_payloads:
 		return
-
+	
 	driver = None
 
 	try:
 		driver = get_driver()
 	except:
+		print(traceback.format_exc())
 		raise()
 
 	twilio_client = None
@@ -83,21 +86,21 @@ def thread_task(
 		
 
 def ThreadPoolExecutor(payload, num_workers=4):
+	
 	try:
-		group_size = int(len(payload)/num_workers)
+		group_size = math.ceil((len(payload)/num_workers))
 		groups = grouper(group_size, payload, None)
-
+		
 		with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
 			executor.map(thread_task, groups)
 		
 		return True
 	except:
+		print(traceback.format_exc())
 		logger.info(traceback.format_exc())
 
 
 if __name__ == "__main__":
-
-
 
 	payload = None
 
@@ -107,7 +110,6 @@ if __name__ == "__main__":
 		
 		if payload is None:
 			raise Exception('No payload')
-
 	except:
 		print(traceback.format_exc())
 		raise Exception('Unable to get payload')
