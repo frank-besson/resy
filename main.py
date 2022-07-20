@@ -166,14 +166,13 @@ if __name__ == "__main__":
 		if payloads is None:
 			raise Exception('No payloads')
 
-		print(len(payloads))
 	except Exception as e:
 		logger.info(traceback.format_exc())
 		raise e
 
-	# try:
-	# 	ThreadPoolExecutor(payloads)
+	try:
+		ThreadPoolExecutor(payloads)
 
-	# except Exception as e:
-	# 	logger.info(traceback.format_exc())
-	# 	raise e
+	except Exception as e:
+		logger.info(traceback.format_exc())
+		raise e
