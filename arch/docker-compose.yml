@@ -5,7 +5,7 @@ version: '3.8'
 services:
 
   # hub:
-  #   image: rbonghi/selenium-hub:latest-aarch64
+  #   image: frankbesson/selenium-hub:latest-aarch64
   #   ports:
   #     - 4442:4442
   #     - 4443:4443

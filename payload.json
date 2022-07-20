@@ -1,12 +1,12 @@
 {
     "query": [
         {
-            "restaurant": "carbone",
+            "restaurant": "jackdaw",
             "seats": 2,
             "numbers": [
                 "+1(number to send to)"
             ],
-            "reservation_day_range": 30
+            "reservation_day_range": 1
         }
     ]
 }

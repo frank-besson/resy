@@ -1,7 +1,7 @@
-import logging
+import logging, traceback
+from datetime import datetime
+import traceback
 from selenium import webdriver
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
@@ -69,6 +69,22 @@ def check_resy(
 
     # Find reservation buttons
     # https://selenium-python.readthedocs.io/locating-elements.html#
-    return driver.find_elements(By.CLASS_NAME, 'ReservationButton__time')
+    button_list = driver.find_elements(By.CLASS_NAME, 'ReservationButton__time')
+
+    ret_list = []
 
     # availablity = '\n\t'.join([str(button.text).replace("\n", " - ") for button in button_list])
+    for button in button_list:
+        
+        button_text = str(button.text).replace("\n", " - ")
+        
+        try:
+            dt = datetime.strptime(button_text, '%I:%M%p')
+        except:
+            print(traceback.format_exc())
+        
+        if dt.hour >= 18 and dt.hour <= 22:
+            ret_list.append(dt)
+
+    return ret_list
+

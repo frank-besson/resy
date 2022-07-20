@@ -1,5 +1,5 @@
 
-import os, math, logging, json, traceback, itertools
+import os, math, json, traceback, itertools
 from datetime import datetime, timedelta
 import concurrent.futures
 from helper import get_twilio, get_logger, check_resy
@@ -79,6 +79,9 @@ def thread_task(
 
 		if driver is None:
 			raise Exception('Unable to get driver')
+		else:
+			driver.set_page_load_timeout(30)
+			
 	except:
 		print(traceback.format_exc())
 		raise()
