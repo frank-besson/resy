@@ -67,7 +67,7 @@ def check_resy(
 
     # Wait until the page has been loaded
     # https://www.lambdatest.com/blog/selenium-wait-for-page-to-load/
-    WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.CLASS_NAME, "ReservationButtonList")))
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, "ReservationButtonList")))
 
     # Find reservation buttons
     # https://selenium-python.readthedocs.io/locating-elements.html#
