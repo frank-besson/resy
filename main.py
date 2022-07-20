@@ -18,16 +18,19 @@ if os.path.exists(log_fname):
 logger = get_logger(log_fname)
 
 
+def zip_discard_compr(*iterables, sentinel=object()):
+    return [[entry for entry in iterable if entry is not sentinel]
+            for iterable in itertools.zip_longest(*iterables, fillvalue=sentinel)]
+
+# https://stackoverflow.com/questions/38054593/zip-longest-without-fillvalue
 def grouper(
 	num_of_groups, 
 	iterable, 
-	fillvalue=None
 ):
 	"grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
 	args = [iter(iterable)] * num_of_groups
 	
-	return list(filter(lambda x: x is not fillvalue, itertools.zip_longest(fillvalue=None, *args)))
-	# list(itertools.zip_longest(fillvalue=fillvalue, *args))
+	return list(zip_discard_compr(*args))
 
 
 def gen_payloads(
