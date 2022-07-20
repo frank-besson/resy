@@ -13,7 +13,7 @@ services:
   #   restart: unless-stopped
 
   chrome:
-    image: upshow/selenium:chromium-93
+    image: frankbesson/selenium:chromium-93
     environment:
       # - SE_EVENT_BUS_HOST=hub
       - SE_EVENT_BUS_PUBLISH_PORT=4442
