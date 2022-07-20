@@ -1,5 +1,5 @@
 
-import os, math, json, traceback, itertools
+import os, sys, math, json, contextlib, traceback, itertools
 from datetime import datetime, timedelta
 import concurrent.futures
 from helper import get_twilio, get_logger, check_resy
@@ -25,97 +25,103 @@ def grouper(
 ):
 	"grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
 	args = [iter(iterable)] * num_of_groups
-	return list(itertools.zip_longest(fillvalue=fillvalue, *args))
+	
+	return list(filter(lambda x: x is not fillvalue, itertools.zip_longest(fillvalue=None, *args)))
+	# list(itertools.zip_longest(fillvalue=fillvalue, *args))
 
 
-def check_for_availability(
-	restaurant_payload,
-	driver, 
-	twilio_client
+def gen_payloads(
+	query
 ):
+	payloads = []
 
-	restaurant = restaurant_payload['restaurant']
-	seats = restaurant_payload['seats']
+	for entry in query:
 
-	for delta in range(0, restaurant_payload['reservation_day_range']):
+		restaurant = entry['restaurant']
+		seats = entry['seats']
 
-		ts = datetime.now() + timedelta(days=delta)
+		for delta in range(0, entry['day_range']):
 
-		url = f'https://resy.com/cities/ny/{restaurant}?date={ts.strftime("%Y-%m-%d")}&seats={seats}'
+			ts = datetime.now() + timedelta(days=delta)
+			
+			url = f'https://resy.com/cities/ny/{restaurant}?date={ts.strftime("%Y-%m-%d")}&seats={seats}'
 
-		button_list = check_resy(
-			url,
-			driver
-		)
-		
-		logger.info(f'[{str(len(button_list))}] {url}')
+			payload = {'ts':ts, 'url':url, 'query':entry}
 
-		if button_list:
-			message = f'Availability at {restaurant} for {seats} people...\n\n{ts.strftime("%m-%d-%Y")}\n{url}'
+			payloads.append(payload) # memory leak, shouldnt need to store payload in urls array
 
-			for number in restaurant_payload['to']:
-				twilio_client.messages.create(
-					body=message,
-					from_=restaurant_payload['from'],
-					to=number
-				)
+	return list(sorted(payloads, key=lambda d: d['ts']))
 
 
 def thread_task(
-	restaurant_payloads
+	payloads
 ):
-	if not restaurant_payloads:
+	if not payloads:
 		return
 
-	args = parser.parse_args()	
-	
 	driver = None
 
 	try:
+		args = parser.parse_args()	
+		
 		if args.mode == 'amd64':
 			driver = amd64.get_driver()
 		elif args.mode == 'arch':
 			driver = arch.get_driver()
 
-		if driver is None:
-			raise Exception('Unable to get driver')
-		else:
-			driver.set_page_load_timeout(30)
-			
-	except:
-		print(traceback.format_exc())
-		raise()
-
-	twilio_client = None
-
-	try:
+		driver.set_page_load_timeout(30)
+				
 		twilio_client = get_twilio(
 			account_sid=os.environ['TWILIO_ACCOUNT_SID'],
 			auth_token=os.environ['TWILIO_AUTH_TOKEN']
 		) 
+
+		for payload in payloads:
+
+			button_list = check_resy(
+				url = payload['url'],
+				driver = driver,
+				min_hour = payload['query']['min_hour'],
+				max_hour = payload['query']['max_hour']
+			)
+			
+			button_num = len(button_list)
+
+			logger.info(f"[{button_num} btns] {payload['url']}")
+
+			if button_list:
+
+				intro = 'reservation' if button_num == 1 else 'reservations'
+
+				message = 	f"{button_num} {intro} available at {payload['query']['restaurant']} for..." \
+							f"\n\n{payload['query']['seats']} people"\
+							f"\n{payload['ts'].strftime('%a, %m-%d-%Y')}" \
+							f"\n{payload['url']}"
+
+				for number in payload['query']['to']:
+					twilio_client.messages.create(
+						body=message,
+						from_= payload['query']['from'],
+						to=number
+					)
 	except:
 		print(traceback.format_exc())
-		raise Exception('Unable to get twilio client')
-
-	try:
-		for restaurant_payload in restaurant_payloads:
-			check_for_availability(restaurant_payload, driver, twilio_client)
-	except:
-		pass
+		logger.info(traceback.format_exc())
+	
 	finally:
-		driver.quit()
+		if driver is not None:
+			driver.quit()
 		
 
-def ThreadPoolExecutor(payload, num_workers=4):
+def ThreadPoolExecutor(payloads, num_workers=4):
 	
 	try:
-		group_size = math.ceil((len(payload)/num_workers))
-		groups = grouper(group_size, payload, None)
-		
+		group_size = math.ceil((len(payloads)/num_workers))
+		groups = grouper(group_size, payloads)
+
 		with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
 			executor.map(thread_task, groups)
 		
-		return True
 	except:
 		print(traceback.format_exc())
 		logger.info(traceback.format_exc())
@@ -123,20 +129,34 @@ def ThreadPoolExecutor(payload, num_workers=4):
 
 if __name__ == "__main__":
 
-	payload = None
+	query = None
 
 	try:
-		with open('payload.json', 'r') as f:
-			payload = json.loads(f.read())['query']
+		with open('query.json', 'r') as f:
+			query = json.loads(f.read())['query']
 		
-		if payload is None:
-			raise Exception('No payload')
-	except:
-		print(traceback.format_exc())
-		raise Exception('Unable to get payload')
+		if query is None:
+			raise Exception('No query found')
+	
+	except Exception as e:
+		logger.info(traceback.format_exc())
+		sys.exit(1)
+
+	payloads = None
 
 	try:
-		ThreadPoolExecutor(payload)
-	except:
-		print(traceback.format_exc())
-		raise Exception('Unable to complete ThreadPoolExecutor')
+		payloads = gen_payloads(query)
+
+		if payloads is None:
+			raise Exception('No payloads')
+
+	except Exception as e:
+		logger.info(traceback.format_exc())
+		raise e
+
+	try:
+		ThreadPoolExecutor(payloads)
+
+	except Exception as e:
+		logger.info(traceback.format_exc())
+		raise e

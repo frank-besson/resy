@@ -59,13 +59,15 @@ def get_twilio(
 
 def check_resy(
     url, 
-    driver
+    driver,
+    min_hour=18,
+    max_hour=22
 ):		
     driver.get(url)
 
     # Wait until the page has been loaded
     # https://www.lambdatest.com/blog/selenium-wait-for-page-to-load/
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, "VenuePage")))
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, "VenuePage__Selector-Wrapper")))
 
     # Find reservation buttons
     # https://selenium-python.readthedocs.io/locating-elements.html#
@@ -83,7 +85,7 @@ def check_resy(
         except:
             print(traceback.format_exc())
         
-        if dt.hour >= 18 and dt.hour <= 22:
+        if min_hour >= 18 and max_hour <= 22:
             ret_list.append(dt)
 
     return ret_list

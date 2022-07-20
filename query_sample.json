@@ -3,7 +3,10 @@
         {
             "restaurant": "jackdaw",
             "seats": 2,
-            "numbers": [
+            "min_hour": 18,
+            "max_hour": 22,
+            "from": "+1(number to send from)",
+            "to": [
                 "+1(number to send to)"
             ],
             "reservation_day_range": 1
