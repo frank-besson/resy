@@ -47,18 +47,6 @@ def get_logger(
     return logger
 
 
-# https://testdriven.io/blog/concurrent-web-scraping-with-selenium-grid-and-docker-swarm/
-def get_driver(
-    options=options,
-    host='http://localhost:4444/wd/hub'
-):
-    return webdriver.Remote(
-        options=options, 
-        # desired_capabilities=DesiredCapabilities.CHROME,
-        command_executor = host
-    )
-
-
 def get_twilio(
     account_sid,
     auth_token
