@@ -40,15 +40,31 @@ def gen_payloads(
 		restaurant = entry['restaurant']
 		seats = entry['seats']
 
-		for delta in range(0, entry['day_range']):
+		if 'day_range' in entry.keys():
 
-			ts = datetime.now() + timedelta(days=delta)
-			
+			for delta in range(0, entry['day_range']):
+
+				ts = datetime.now() + timedelta(days=delta)
+
+				if ts.weekday() < entry['min_dow'] or ts.weekday() > entry['max_dow']:
+					continue
+				
+				url = f'https://resy.com/cities/ny/{restaurant}?date={ts.strftime("%Y-%m-%d")}&seats={seats}'
+
+				payload = {'ts':ts, 'url':url, 'query':entry}
+
+				payloads.append(payload) # memory leak, shouldnt need to store payload in urls array
+		
+		elif 'date' in entry.keys():
+
+			ts = datetime.strptime(entry['date'], '%m-%d-%Y')
+
 			url = f'https://resy.com/cities/ny/{restaurant}?date={ts.strftime("%Y-%m-%d")}&seats={seats}'
 
 			payload = {'ts':ts, 'url':url, 'query':entry}
 
 			payloads.append(payload) # memory leak, shouldnt need to store payload in urls array
+
 
 	return list(sorted(payloads, key=lambda d: d['ts']))
 
@@ -150,13 +166,14 @@ if __name__ == "__main__":
 		if payloads is None:
 			raise Exception('No payloads')
 
+		print(len(payloads))
 	except Exception as e:
 		logger.info(traceback.format_exc())
 		raise e
 
-	try:
-		ThreadPoolExecutor(payloads)
+	# try:
+	# 	ThreadPoolExecutor(payloads)
 
-	except Exception as e:
-		logger.info(traceback.format_exc())
-		raise e
+	# except Exception as e:
+	# 	logger.info(traceback.format_exc())
+	# 	raise e
