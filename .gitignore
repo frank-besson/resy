@@ -2,6 +2,6 @@
 .env
 *.sh
 *.txt
-*.json
+payload.json
 
 __pycache__/
