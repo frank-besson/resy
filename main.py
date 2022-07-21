@@ -2,9 +2,7 @@
 import os, sys, math, json, contextlib, traceback, itertools
 from datetime import datetime, timedelta
 import concurrent.futures
-from helper import get_twilio, get_logger, check_resy
-import amd64
-import arch
+from helper import get_twilio, get_logger, check_resy, amd64, arch
 import argparse
 
 parser = argparse.ArgumentParser()

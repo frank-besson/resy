@@ -1,24 +1,22 @@
 version: '3.8'
 # https://testdriven.io/blog/concurrent-web-scraping-with-selenium-grid-and-docker-swarm/
+# docker-compose -f docker-compose-arch.yml up -d
 
 services:
 
-  hub:
-    image: selenium/hub:4.1.3
-    container_name: selenium-hub
-    ports:
-      - 4442:4442
-      - 4443:4443
-      - 4444:4444
-    restart: unless-stopped
+  # hub:
+  #   image: frankbesson/selenium-hub:latest-aarch64
+  #   ports:
+  #     - 4442:4442
+  #     - 4443:4443
+  #     - 4444:4444
+  #   restart: unless-stopped
 
   chrome:
-    image: selenium/node-chrome:103.0
+    image: frankbesson/selenium:chromium-93
     container_name: selenium
-    depends_on:
-      - hub
     environment:
-      - SE_EVENT_BUS_HOST=hub
+      # - SE_EVENT_BUS_HOST=hub
       - SE_EVENT_BUS_PUBLISH_PORT=4442
       - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
       - SE_NODE_MAX_SESSIONS=4
