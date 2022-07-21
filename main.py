@@ -132,7 +132,7 @@ def thread_task(
 			driver.quit()
 		
 
-def ThreadPoolExecutor(payloads, num_workers=4):
+def ThreadPoolExecutor(payloads, num_workers=2):
 	
 	try:
 		group_size = math.ceil((len(payloads)/num_workers))
