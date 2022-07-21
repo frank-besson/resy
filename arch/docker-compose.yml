@@ -1,4 +1,5 @@
 version: '3.8'
+  #name: selenium-project
 # https://testdriven.io/blog/concurrent-web-scraping-with-selenium-grid-and-docker-swarm/
 # docker-compose -f docker-compose-arm64.yml up -d
 
@@ -14,6 +15,7 @@ services:
 
   chrome:
     image: frankbesson/selenium:chromium-93
+    container_name: selenium
     environment:
       # - SE_EVENT_BUS_HOST=hub
       - SE_EVENT_BUS_PUBLISH_PORT=4442
