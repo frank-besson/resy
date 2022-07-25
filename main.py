@@ -1,8 +1,9 @@
 
-import os, sys, math, json, contextlib, traceback, itertools
+from glob import glob
+import os, sys, math, json, traceback, itertools
 from datetime import datetime, timedelta
 import concurrent.futures
-from helper import get_twilio, get_logger, check_resy, amd64, arch
+from helper import get_twilio, get_logger, check_resy, should_notify, amd64, arch
 import argparse
 
 parser = argparse.ArgumentParser()
@@ -14,6 +15,11 @@ if os.path.exists(log_fname):
 	os.remove(log_fname)
 
 logger = get_logger(log_fname)
+
+os.environ['PYTHONHASHSEED'] = "0"
+
+if not os.path.exists('notifications'):
+	os.makedirs('notifications')
 
 
 def zip_discard_compr(*iterables, sentinel=object()):
@@ -95,32 +101,46 @@ def thread_task(
 
 		for payload in payloads:
 
-			button_list = check_resy(
+			availability = check_resy(
 				url = payload['url'],
 				driver = driver,
 				min_hour = payload['query']['min_hour'],
 				max_hour = payload['query']['max_hour']
 			)
 			
-			button_num = len(button_list)
+			button_num = len(availability)
 
 			logger.info(f"[{button_num} btns] {payload['url']}")
 
-			if button_list:
+			if availability:
 
-				intro = 'reservation' if button_num == 1 else 'reservations'
+				restaurant = payload['query']['restaurant']
+				seats = payload['query']['seats']
+				
+				
+				for number in payload['query']['to']:
+					
+					if should_notify(
+						restaurant = restaurant,
+						seats = seats,
+						availability = availability,
+						number = number
+					):
+						intro = 'reservation' if button_num == 1 else 'reservations'
 
-				message = 	f"{button_num} {intro} available at {payload['query']['restaurant']} for..." \
-							f"\n\n{payload['query']['seats']} people"\
+						message = f"{button_num} {intro} available at {restaurant} for..." \
+							f"\n\n{seats} people"\
 							f"\n{payload['ts'].strftime('%a, %m-%d-%Y')}" \
 							f"\n{payload['url']}"
 
-				for number in payload['query']['to']:
-					twilio_client.messages.create(
-						body=message,
-						from_= payload['query']['from'],
-						to=number
-					)
+						twilio_client.messages.create(
+							body=message,
+							from_= payload['query']['from'],
+							to=number
+						)
+
+						break
+			
 	except:
 		print(traceback.format_exc())
 		logger.info(traceback.format_exc())
@@ -131,7 +151,7 @@ def thread_task(
 		
 
 def ThreadPoolExecutor(payloads, num_workers=2):
-	
+
 	try:
 		group_size = math.ceil((len(payloads)/num_workers))
 		groups = grouper(group_size, payloads)

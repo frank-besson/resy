@@ -1,4 +1,4 @@
-import logging, traceback
+import os, json, logging, traceback, hashlib
 from datetime import datetime
 import traceback
 from selenium import webdriver
@@ -15,6 +15,13 @@ options = webdriver.ChromeOptions()
 options.add_argument("--headless")
 options.add_argument('--no-sandbox')
 options.add_argument('--disable-dev-shm-usage')
+
+
+# https://www.peterbe.com/plog/best-hashing-function-in-python
+def hash_string(
+    string
+): 
+    return hashlib.md5(string.encode()).hexdigest()[:20]
 
 
 def get_logger(
@@ -65,8 +72,6 @@ def check_resy(
 ):		
     driver.get(url)
 
-
-
     # Wait until the page has been loaded
     # https://www.lambdatest.com/blog/selenium-wait-for-page-to-load/
     WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, "VenuePage__Selector-Wrapper")))
@@ -91,4 +96,65 @@ def check_resy(
             ret_list.append(dt)
 
     return ret_list
+
+
+def populate(
+    restaurant,
+    seats,
+    availability,
+    number,
+):
+    now = datetime.now()
+
+    for reservation_time in [r.strftime('%I:%M%p') for r in availability]:
+        fname = hash_string(str((restaurant,seats,reservation_time,number)))
+        fpath = os.path.join('notifications', fname)
+
+        with open(fpath, 'w') as f: 
+            f.write(
+                json.dumps({
+                'restaurant': restaurant,
+                'seats': seats,
+                'reservation_time': reservation_time,
+                'number': number,
+                'notified': now.strftime('%Y-%m-%d %H:%M:%S')
+                }, indent=2)
+            )
+
+
+def should_notify(
+    restaurant,
+    seats,
+    availability,
+    number,
+    threshold = 60
+):
+    for reservation_time in [r.strftime('%I:%M%p') for r in availability]:
+
+        fname = hash_string(str((restaurant,seats,reservation_time,number)))
+
+        fpath = os.path.join('notifications', fname)
+
+        should_notify = False
+
+        if not os.path.exists(fpath):
+            should_notify =  True
+        else:
+            with open(fpath, 'r') as f:
+                contents = json.loads(f.read())
+            
+            notified = datetime.strptime(contents['notified'], '%Y-%m-%d %H:%M:%S')
+
+            if (datetime.now() - notified).total_seconds() /60.0 >= threshold:
+                should_notify = True
+
+        if should_notify:
+            populate(
+                restaurant,
+                seats,
+                availability,
+                number
+            )
+
+        return should_notify
 
