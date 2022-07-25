@@ -117,7 +117,6 @@ def thread_task(
 				restaurant = payload['query']['restaurant']
 				seats = payload['query']['seats']
 				
-				
 				for number in payload['query']['to']:
 					
 					if should_notify(

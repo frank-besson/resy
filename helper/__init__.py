@@ -47,7 +47,7 @@ def get_logger(
         level=logging.INFO
     )
 
-    logger = logging.getLogger('my_logger')
+    logger = logging.getLogger('resy')
 
     logger.addHandler(fh)
 
@@ -92,7 +92,7 @@ def check_resy(
         except:
             print(traceback.format_exc())
         
-        if dt.hour >= min_hour and dt.hour <= max_hour:
+        if dt.hour >= min_hour and dt.hour < max_hour:
             ret_list.append(dt)
 
     return ret_list
