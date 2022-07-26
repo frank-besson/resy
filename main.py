@@ -121,8 +121,9 @@ def thread_task(
 					
 					if should_notify(
 						restaurant = restaurant,
-						seats = seats,
+						date = payload['ts'].strftime('%a, %m-%d-%Y'),
 						availability = availability,
+						seats = seats,
 						number = number
 					):
 						intro = 'reservation' if button_num == 1 else 'reservations'
@@ -137,8 +138,6 @@ def thread_task(
 							from_= payload['query']['from'],
 							to=number
 						)
-
-						break
 			
 	except:
 		print(traceback.format_exc())

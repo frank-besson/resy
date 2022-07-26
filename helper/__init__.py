@@ -100,22 +100,24 @@ def check_resy(
 
 def populate(
     restaurant,
-    seats,
+    date,
     availability,
+    seats,
     number,
 ):
     now = datetime.now()
 
     for reservation_time in [r.strftime('%I:%M%p') for r in availability]:
-        fname = hash_string(str((restaurant,seats,reservation_time,number)))
+        fname = hash_string(str((restaurant,date,reservation_time,seats,number)))
         fpath = os.path.join('notifications', fname)
 
         with open(fpath, 'w') as f: 
             f.write(
                 json.dumps({
                 'restaurant': restaurant,
-                'seats': seats,
+                'date':date,
                 'reservation_time': reservation_time,
+                'seats': seats,
                 'number': number,
                 'notified': now.strftime('%Y-%m-%d %H:%M:%S')
                 }, indent=2)
@@ -124,14 +126,15 @@ def populate(
 
 def should_notify(
     restaurant,
-    seats,
+    date, 
     availability,
+    seats,
     number,
     threshold = 60
 ):
     for reservation_time in [r.strftime('%I:%M%p') for r in availability]:
 
-        fname = hash_string(str((restaurant,seats,reservation_time,number)))
+        fname = hash_string(str((restaurant,date,reservation_time,seats,number)))
 
         fpath = os.path.join('notifications', fname)
 
@@ -145,14 +148,15 @@ def should_notify(
             
             notified = datetime.strptime(contents['notified'], '%Y-%m-%d %H:%M:%S')
 
-            if (datetime.now() - notified).total_seconds() /60.0 >= threshold:
+            if (datetime.now() - notified).total_seconds() / 60.0 >= threshold:
                 should_notify = True
 
         if should_notify:
             populate(
                 restaurant,
-                seats,
+                date,
                 availability,
+                seats,
                 number
             )
 
