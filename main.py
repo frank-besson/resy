@@ -12,6 +12,7 @@ from payload import payload
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-m', '--mode', dest='mode', choices=['arch', 'amd64'], default='amd64')
+parser.add_argument('-f', '--file', dest='file', default='query.json')
 
 logger = get_logger(
 	log_fname = os.path.join(os.getcwd(), 'log.txt')
@@ -155,9 +156,11 @@ if __name__ == "__main__":
 
 	query = None
 
-	# READ "query.json" FILE
+	# READ QUERY FILE
+	args = parser.parse_args()	
+
 	try:
-		with open('query.json', 'r') as f:
+		with open(args.file, 'r') as f:
 			query = json.loads(f.read())['query']
 		
 		if query is None:
