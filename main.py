@@ -7,7 +7,7 @@ import argparse
 from selenium import webdriver
 from twilio.rest import Client
 
-from helper import grouper, get_browser, get_twilio, get_logger, check_resy, should_notify
+from helper import grouper, get_browser, get_twilio, get_logger, check_resy, notify
 from payload import payload
 
 parser = argparse.ArgumentParser()
@@ -48,27 +48,17 @@ def process_payload(
 	logger.info(f"[{n_availability} slots] {payload.url}")
 
 	if availability:
-		for number in payload.number_to:
-			
-			if should_notify(
+		for number_to in payload.number_to:
+			notify(
 				restaurant = payload.restaurant,
 				date = payload.date.strftime('%a, %m-%d-%Y'),
 				availability = availability,
 				seats = payload.seats,
-				number = number
-			):
-				intro = 'reservation' if n_availability == 1 else 'reservations'
-
-				message = f"{n_availability} {intro} available at {payload.restaurant} for..." \
-					f"\n\n{payload.seats} people"\
-					f"\n{payload.date.strftime('%a, %m-%d-%Y')}" \
-					f"\n{payload.url}"
-
-				twilio.messages.create(
-					body=message,
-					from_= payload.number_from,
-					to=number
-				)
+				number_to = number_to,
+				number_from = payload.number_from,
+				url = payload.url,
+				twilio = twilio
+			)
 
 
 def thread_task(

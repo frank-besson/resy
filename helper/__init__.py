@@ -223,16 +223,16 @@ def check_resy(
     return availability
 
 
-def populate(
+def log_notifications(
     restaurant: str,
-    date: datetime,
+    date: str,
     availability: list[datetime],
     seats: int,
     number: str,
 ):
     '''
     Description:
-        populate 'notifications' directory with information about notifications
+        Populate 'notifications' directory with information about notifications
         that have been sent. This ensures that interested parties are not notified 
         too often.
 
@@ -263,13 +263,16 @@ def populate(
             )
 
 
-def should_notify(
-    restaurant,
-    date, 
-    availability,
-    seats,
-    number,
-    threshold = 60
+def notify(
+    restaurant: str,
+    date: str, 
+    availability: list[datetime],
+    seats: int,
+    number_to: str,
+    number_from: str,
+    url: str,
+    twilio,
+    threshold = 60,
 ):
     '''
     Description:
@@ -279,16 +282,17 @@ def should_notify(
 
     Parameters:
         restaurant 	 (str): name of restaurant as it appears in resy url
-        date		 (datetime): when to search for availability
+        date		 (str): when to search for availability
         availability (list[datetime]): available reservation times
         seats 		 (int): number of people attending
-        number	     (str): phone number that should be notified
+        number_to	 (str): phone number that should be notified
+        number_from	 (str): twilio phone number that notification should be sent from
         threshold    (int): number of minutes that should pass before renotifying someone
     '''
 
     for reservation_time in [r.strftime('%I:%M%p') for r in availability]:
 
-        fname = hash_string(str((restaurant,date,reservation_time,seats,number)))
+        fname = hash_string(str((restaurant,date,reservation_time,seats,number_to)))
 
         fpath = os.path.join('notifications', fname)
 
@@ -306,13 +310,27 @@ def should_notify(
                 should_notify = True
 
         if should_notify:
-            populate(
+            n_availability = len(availability)
+
+            intro = 'reservation' if n_availability == 1 else 'reservations'
+
+            message = f"{n_availability} {intro} available at {restaurant} for..." \
+                f"\n\n{seats} people"\
+                f"\n{date}" \
+                f"\n{url}"
+
+            twilio.messages.create(
+                body = message,
+                from_ = number_from,
+                to = number_to
+            )
+
+            log_notifications(
                 restaurant,
                 date,
                 availability,
                 seats,
-                number
+                number_to
             )
 
-        return should_notify
-
+            return
