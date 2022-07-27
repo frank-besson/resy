@@ -1,6 +1,7 @@
 version: '3.8'
-# https://testdriven.io/blog/concurrent-web-scraping-with-selenium-grid-and-docker-swarm/
-# docker-compose -f docker-compose-arch.yml up -d
+# requirements: amd64
+# commands:     docker-compose -f docker-compose-arch.yml up -d
+# resources:    https://testdriven.io/blog/concurrent-web-scraping-with-selenium-grid-and-docker-swarm/
 
 services:
 

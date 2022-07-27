@@ -1,158 +1,143 @@
 
-from glob import glob
-import os, sys, math, json, traceback, itertools
+import os, sys, math, json, traceback
 from datetime import datetime, timedelta
 import concurrent.futures
-from helper import get_twilio, get_logger, check_resy, should_notify, amd64, arch
 import argparse
+
+from selenium import webdriver
+from twilio.rest import Client
+
+from helper import grouper, get_browser, get_twilio, get_logger, check_resy, should_notify
+from payload import payload
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-m', '--mode', dest='mode', choices=['arch', 'amd64'], default='amd64')
 
-log_fname = os.path.join(os.getcwd(), 'log.txt')
-
-if os.path.exists(log_fname):
-	os.remove(log_fname)
-
-logger = get_logger(log_fname)
-
-os.environ['PYTHONHASHSEED'] = "0"
-
-if not os.path.exists('notifications'):
-	os.makedirs('notifications')
+logger = get_logger(
+	log_fname = os.path.join(os.getcwd(), 'log.txt')
+)
 
 
-def zip_discard_compr(*iterables, sentinel=object()):
-    return [[entry for entry in iterable if entry is not sentinel]
-            for iterable in itertools.zip_longest(*iterables, fillvalue=sentinel)]
-
-# https://stackoverflow.com/questions/38054593/zip-longest-without-fillvalue
-def grouper(
-	num_of_groups, 
-	iterable, 
+def process_payload(
+	payload: payload,
+	browser: webdriver,
+	twilio: Client
 ):
-	"grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
-	args = [iter(iterable)] * num_of_groups
+	'''
+	Description:
+		process payload by checking if theres any availability on resy.com
+		by using an invocation of selenium.webdriver, twilio.rest.Client, and "check_resy"
+		if availability exists, send an SMS message to interested parties
+
+	Parameters:
+		payload (payload): 				payload that should be processed
+		browser (selenium.webdriver): 	invocation to be used to process web requests
+		twilio 	(twilio.rest.Client): 	invocation to be used to process notifications
+	'''
+
+	availability = check_resy(
+		url = payload.url,
+		browser = browser,
+		min_hour = payload.min_hour,
+		max_hour = payload.max_hour
+	)
 	
-	return list(zip_discard_compr(*args))
+	n_availability = len(availability)
 
+	logger.info(f"[{n_availability} slots] {payload.url}")
 
-def gen_payloads(
-	query
-):
-	payloads = []
+	if availability:
+		for number in payload.number_to:
+			
+			if should_notify(
+				restaurant = payload.restaurant,
+				date = payload.date.strftime('%a, %m-%d-%Y'),
+				availability = availability,
+				seats = payload.seats,
+				number = number
+			):
+				intro = 'reservation' if n_availability == 1 else 'reservations'
 
-	for entry in query:
+				message = f"{n_availability} {intro} available at {payload.restaurant} for..." \
+					f"\n\n{payload.seats} people"\
+					f"\n{payload.date.strftime('%a, %m-%d-%Y')}" \
+					f"\n{payload.url}"
 
-		restaurant = entry['restaurant']
-		seats = entry['seats']
-
-		if 'day_range' in entry.keys():
-
-			for delta in range(0, entry['day_range']):
-
-				ts = datetime.now() + timedelta(days=delta)
-
-				if ts.weekday() < entry['min_dow'] or ts.weekday() > entry['max_dow']:
-					continue
-				
-				url = f'https://resy.com/cities/ny/{restaurant}?date={ts.strftime("%Y-%m-%d")}&seats={seats}'
-
-				payload = {'ts':ts, 'url':url, 'query':entry}
-
-				payloads.append(payload) # memory leak, shouldnt need to store payload in urls array
-		
-		elif 'date' in entry.keys():
-
-			ts = datetime.strptime(entry['date'], '%m-%d-%Y')
-
-			url = f'https://resy.com/cities/ny/{restaurant}?date={ts.strftime("%Y-%m-%d")}&seats={seats}'
-
-			payload = {'ts':ts, 'url':url, 'query':entry}
-
-			payloads.append(payload) # memory leak, shouldnt need to store payload in urls array
-
-
-	return list(sorted(payloads, key=lambda d: d['ts']))
+				twilio.messages.create(
+					body=message,
+					from_= payload.number_from,
+					to=number
+				)
 
 
 def thread_task(
-	payloads
+	payloads: list[payload]
 ):
-	if not payloads:
-		return
+	'''
+	Description:
+		process list of payloads using "process_payload" and
+		an invocation of selenium.webdriver and twilio.rest.Client
 
-	driver = None
+	Parameters:
+		payloads (list[payload]): list of payloads containing
+			information that should be processed
+	'''
+
+	browser = None
 
 	try:
+		if not payloads:
+			return
+
 		args = parser.parse_args()	
 		
-		if args.mode == 'amd64':
-			driver = amd64.get_driver()
-		elif args.mode == 'arch':
-			driver = arch.get_driver()
+		browser = get_browser(
+			mode=args.mode
+		)
 
-		driver.set_page_load_timeout(30)
-				
-		twilio_client = get_twilio(
+		twilio = get_twilio(
 			account_sid=os.environ['TWILIO_ACCOUNT_SID'],
 			auth_token=os.environ['TWILIO_AUTH_TOKEN']
 		) 
 
 		for payload in payloads:
-
-			availability = check_resy(
-				url = payload['url'],
-				driver = driver,
-				min_hour = payload['query']['min_hour'],
-				max_hour = payload['query']['max_hour']
+			process_payload(
+				payload	= payload,
+				browser	= browser,
+				twilio	= twilio
 			)
-			
-			button_num = len(availability)
-
-			logger.info(f"[{button_num} btns] {payload['url']}")
-
-			if availability:
-
-				restaurant = payload['query']['restaurant']
-				seats = payload['query']['seats']
-				
-				for number in payload['query']['to']:
-					
-					if should_notify(
-						restaurant = restaurant,
-						date = payload['ts'].strftime('%a, %m-%d-%Y'),
-						availability = availability,
-						seats = seats,
-						number = number
-					):
-						intro = 'reservation' if button_num == 1 else 'reservations'
-
-						message = f"{button_num} {intro} available at {restaurant} for..." \
-							f"\n\n{seats} people"\
-							f"\n{payload['ts'].strftime('%a, %m-%d-%Y')}" \
-							f"\n{payload['url']}"
-
-						twilio_client.messages.create(
-							body=message,
-							from_= payload['query']['from'],
-							to=number
-						)
-			
+	
 	except:
 		print(traceback.format_exc())
 		logger.info(traceback.format_exc())
 	
 	finally:
-		if driver is not None:
-			driver.quit()
+		if browser is not None:
+			browser.quit()
 		
 
-def ThreadPoolExecutor(payloads, num_workers=2):
+def ThreadPoolExecutor(
+	payloads: list[payload], 
+	num_workers: int =2
+):
+	'''
+	Description:
+		Distribute payloads across "num_workers" number
+		of threads to be processed concurrently using 
+		"thread_task"
+
+	Parameters:
+		payloads 	(list[payload]): list of payloads containing
+			information that should be processed concurrently
+		num_workers (int): number of threads that should be spawned 
+			to process payloads
+	'''
 
 	try:
-		group_size = math.ceil((len(payloads)/num_workers))
-		groups = grouper(group_size, payloads)
+		groups = grouper(
+			num_of_groups = math.ceil((len(payloads)/num_workers)), 
+			iterable = payloads
+		)
 
 		with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
 			executor.map(thread_task, groups)
@@ -164,8 +149,13 @@ def ThreadPoolExecutor(payloads, num_workers=2):
 
 if __name__ == "__main__":
 
+	# CREATE DIRECTORY FOR LOGGING NOTIFICATIONS
+	if not os.path.exists('notifications'):
+		os.makedirs('notifications')
+
 	query = None
 
+	# READ "query.json" FILE
 	try:
 		with open('query.json', 'r') as f:
 			query = json.loads(f.read())['query']
@@ -177,21 +167,53 @@ if __name__ == "__main__":
 		logger.info(traceback.format_exc())
 		sys.exit(1)
 
-	payloads = None
+	payloads = []
 
+	# GENERATE LIST OF PAYLOADS TO PROCESS
 	try:
-		payloads = gen_payloads(query)
+		for entry in query:
 
-		if payloads is None:
+			dates = []
+
+			if 'day_range' in entry.keys():
+				for i in range(0, entry['day_range']):
+					
+					date = datetime.now() + timedelta(days=i)
+ 
+					if date.weekday() >= entry['min_dow'] and date.weekday() <= entry['max_dow']:
+						dates.append(date)
+
+			elif 'date' in entry.keys():
+				date = datetime.strptime(entry['date'], '%m-%d-%Y')
+
+				dates.append(date)
+
+
+			for date in dates:
+				payloads.append(payload(
+					restaurant = entry['restaurant'],
+					state = entry['state'],
+					seats = entry['seats'],		
+					date = date,
+					min_hour = entry['min_hour'],	
+					max_hour = entry['max_hour'],	
+					number_to = entry['number_to'],
+					number_from = entry['number_from'],
+				))
+
+		if not payloads:
 			raise Exception('No payloads')
+		else:
+			payloads = list(sorted(payloads, key=lambda d: d.date))
 
 	except Exception as e:
 		logger.info(traceback.format_exc())
-		raise e
+		sys.exit(1)
 
+	# PROCESS PAYLOADS USING IN THREADS
 	try:
 		ThreadPoolExecutor(payloads)
 
 	except Exception as e:
 		logger.info(traceback.format_exc())
-		raise e
+		sys.exit(1)
